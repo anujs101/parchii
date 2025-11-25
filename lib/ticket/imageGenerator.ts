@@ -1,4 +1,4 @@
-import { createCanvas, loadImage, CanvasRenderingContext2D } from 'canvas';
+import type { CanvasRenderingContext2D } from 'canvas';
 import { generateQRBuffer } from '../qr/qrGenerator';
 
 export interface EventInfo {
@@ -39,9 +39,12 @@ export async function generateTicketImage(
   qrData: string,
   design: Partial<TicketDesignOptions> = {}
 ): Promise<Buffer> {
+  // Lazy import canvas at runtime so build-time (Vercel) doesn't attempt to load native bindings
+  const { createCanvas } = await import('canvas');
+
   const options = { ...DEFAULT_DESIGN, ...design };
   const canvas = createCanvas(options.width, options.height);
-  const ctx = canvas.getContext('2d');
+  const ctx = canvas.getContext('2d') as CanvasRenderingContext2D;
 
   // Set up canvas
   ctx.fillStyle = options.backgroundColor;
@@ -92,6 +95,8 @@ async function addEventPoster(
   options: TicketDesignOptions
 ): Promise<void> {
   try {
+    // lazy-import loadImage to avoid build-time native binding resolution
+    const { loadImage } = await import('canvas');
     const poster = await loadImage(posterUrl);
     
     // Add poster with overlay
@@ -190,6 +195,9 @@ async function addQRCode(
   options: TicketDesignOptions
 ): Promise<void> {
   try {
+    // lazy-import loadImage to avoid build-time native binding resolution
+    const { loadImage } = await import('canvas');
+
     const qrBuffer = await generateQRBuffer(qrData, options.qrSize);
     const qrImage = await loadImage(qrBuffer);
 
