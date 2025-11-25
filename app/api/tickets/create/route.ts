@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { NextRequest, NextResponse } from 'next/server';
 import { generateTicketQR } from '@/lib/qr/qrGenerator';
 import { uploadImageToIPFS, uploadMetadataToIPFS, createTicketMetadata } from '@/lib/ipfs/ipfsService';
