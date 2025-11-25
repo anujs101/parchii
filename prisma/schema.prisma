@@ -1,0 +1,118 @@
+// Parchi NFT Ticketing Platform - Prisma Schema
+generator client {
+  provider = "prisma-client-js"
+  previewFeatures = ["relationJoins"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Enums
+enum EventState {
+  DRAFT
+  PUBLISHED
+  CANCELLED
+  COMPLETED
+}
+
+enum EventCategory {
+  CONFERENCE
+  WORKSHOP
+  MEETUP
+  CONCERT
+  SPORTS
+  ART
+  OTHER
+}
+
+enum TicketStatus {
+  ACTIVE
+  USED
+  CANCELLED
+  REFUNDED
+}
+
+enum VerificationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+// Models
+model Event {
+  eventId               String        @id
+  organizerPubkey       String
+  name                  String
+  description           String?
+  posterUrl             String?
+  startTime             DateTime
+  endTime               DateTime
+  priceLamports         BigInt
+  capacity              Int
+  collectionPubkey      String?       @db.VarChar(44)
+  collectionCreatedAt   DateTime?
+  collectionTxSignature String?       @db.VarChar(88)
+  venue                 String?
+  category              EventCategory @default(OTHER)
+  tags                  String[]      @default([])
+  state                 EventState    @default(DRAFT)
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+
+  // Relations
+  tickets               Ticket[]
+  gateVerifications     GateVerification[]
+
+  @@index([organizerPubkey])
+  @@index([state])
+  @@index([category])
+  @@index([startTime])
+  @@index([collectionPubkey])
+}
+
+model Ticket {
+  ticketId        String        @id @default(cuid())
+  eventId         String
+  holderPubkey    String
+  mintPubkey      String?
+  purchasePrice   BigInt
+  seatNumber      String?
+  tier            String?
+  status          TicketStatus  @default(ACTIVE)
+  purchasedAt     DateTime      @default(now())
+  usedAt          DateTime?
+  metadataUri     String?
+  
+  // Relations
+  event           Event         @relation(fields: [eventId], references: [eventId], onDelete: Cascade)
+  gateVerifications GateVerification[]
+
+  @@index([eventId])
+  @@index([holderPubkey])
+  @@index([status])
+}
+
+model GateVerification {
+  verificationId  String            @id @default(cuid())
+  eventId         String
+  ticketId        String
+  verifierPubkey  String
+  status          VerificationStatus @default(PENDING)
+  verifiedAt      DateTime?
+  location        String?
+  notes           String?
+ signerPubkey    String?           // wallet that signed at verification time
+ meta            Json?             // arbitrary JSON for challengeJwt, signature, gateId, etc.
+  createdAt       DateTime          @default(now())
+
+  // Relations
+  event           Event             @relation(fields: [eventId], references: [eventId], onDelete: Cascade)
+  ticket          Ticket            @relation(fields: [ticketId], references: [ticketId], onDelete: Cascade)
+
+  @@index([eventId])
+  @@index([ticketId])
+  @@index([verifierPubkey])
+  @@index([status])
+}
