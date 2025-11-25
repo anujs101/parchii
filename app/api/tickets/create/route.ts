@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateTicketQR } from '@/lib/qr/qrGenerator';
-import { generateTicketImage } from '@/lib/ticket/imageGenerator';
 import { uploadImageToIPFS, uploadMetadataToIPFS, createTicketMetadata } from '@/lib/ipfs/ipfsService';
 import { prisma } from '@/lib/database/prisma';
 
@@ -23,20 +22,16 @@ export interface TicketCreationResponse {
 
 export async function POST(request: NextRequest): Promise<NextResponse<TicketCreationResponse>> {
   try {
-    const { eventId, ticketNumber, assetPubkey, buyerPubkey }: TicketCreationRequest = await request.json();
+    const { eventId, ticketNumber, assetPubkey, buyerPubkey }: TicketCreationRequest =
+      await request.json();
 
-    // Validate required fields
     if (!eventId || !ticketNumber || !assetPubkey || !buyerPubkey) {
       return NextResponse.json(
-        { 
-          success: false,
-          error: 'Missing required fields: eventId, ticketNumber, assetPubkey, buyerPubkey' 
-        },
+        { success: false, error: 'Missing required fields' },
         { status: 400 }
       );
     }
 
-    // Get event details
     const event = await prisma.event.findUnique({
       where: { eventId },
       select: {
@@ -48,23 +43,19 @@ export async function POST(request: NextRequest): Promise<NextResponse<TicketCre
         priceLamports: true,
         organizerPubkey: true,
         collectionPubkey: true,
-        state: true
-      }
+        state: true,
+      },
     });
 
     if (!event) {
-      return NextResponse.json(
-        { success: false, error: 'Event not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ success: false, error: 'Event not found' }, { status: 404 });
     }
 
-    // 1. Get real collection pubkey from database
     if (!event.collectionPubkey) {
       return NextResponse.json(
-        { 
-          success: false, 
-          error: 'Collection not created for this event. Please create a collection first.' 
+        {
+          success: false,
+          error: 'Collection not created for this event.',
         },
         { status: 400 }
       );
@@ -72,29 +63,32 @@ export async function POST(request: NextRequest): Promise<NextResponse<TicketCre
 
     const collectionPubkey = event.collectionPubkey;
 
-    // 2. Generate QR code data
+    // Generate QR code data
     const qrData = generateTicketQR(eventId, ticketNumber, assetPubkey);
 
-    // 2. Generate ticket image with embedded QR code
+    // ⬇️ Lazy import the image generator (prevents Vercel build crash)
+    const { generateTicketImage } = await import('@/lib/ticket/imageGenerator');
+
+    // Generate ticket image
     const ticketImageBuffer = await generateTicketImage(
       {
         name: event.name,
         description: event.description || '',
         startTime: event.startTime,
         venue: event.venue || undefined,
-        posterUrl: event.posterUrl || undefined
+        posterUrl: event.posterUrl || undefined,
       },
       ticketNumber,
       qrData
     );
 
-    // 3. Upload ticket image to IPFS
+    // Upload PNG
     const imageResult = await uploadImageToIPFS(
       ticketImageBuffer,
       `${eventId}-ticket-${ticketNumber}.png`
     );
 
-    // 4. Create ticket metadata
+    // Create metadata JSON
     const ticketMetadata = createTicketMetadata(
       event.name,
       ticketNumber,
@@ -106,10 +100,10 @@ export async function POST(request: NextRequest): Promise<NextResponse<TicketCre
       `https://parchi.app/ticket/${eventId}/${ticketNumber}`
     );
 
-    // 5. Upload metadata to IPFS
+    // Upload JSON to IPFS
     const metadataResult = await uploadMetadataToIPFS(ticketMetadata);
 
-    // 6. Create ticket record in database
+    // Store in DB
     const ticketRecord = await prisma.ticket.create({
       data: {
         eventId,
@@ -117,8 +111,8 @@ export async function POST(request: NextRequest): Promise<NextResponse<TicketCre
         mintPubkey: assetPubkey,
         purchasePrice: BigInt(event.priceLamports),
         metadataUri: metadataResult.url,
-        status: 'ACTIVE' // Will be updated after blockchain confirmation
-      }
+        status: 'ACTIVE',
+      },
     });
 
     return NextResponse.json({
@@ -127,19 +121,17 @@ export async function POST(request: NextRequest): Promise<NextResponse<TicketCre
       metadataUri: metadataResult.url,
       imageUrl: imageResult.url,
       qrData,
-      collectionPubkey
+      collectionPubkey,
     });
-
   } catch (error) {
     console.error('Ticket creation failed:', error);
     return NextResponse.json(
-      { 
+      {
         success: false,
         error: 'Failed to create ticket and upload metadata',
-        details: error instanceof Error ? error.message : 'Unknown error'
+        details: error instanceof Error ? error.message : 'Unknown error',
       },
       { status: 500 }
     );
   }
 }
-
