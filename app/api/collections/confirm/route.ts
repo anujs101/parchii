@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { confirmOrganizerCollectionCreation, validateCollectionPubkey } from '@/lib/services/collectionService';
 
 export interface CollectionConfirmationRequest {
   organizerPubkey: string;
@@ -17,6 +16,7 @@ export interface CollectionConfirmationResponse {
 export async function POST(request: NextRequest): Promise<NextResponse<CollectionConfirmationResponse>> {
   console.log('=== BACKEND: Collection confirm endpoint hit ===');
   try {
+    const { confirmOrganizerCollectionCreation, validateCollectionPubkey } = await import('@/lib/services/collectionService');
     const body: CollectionConfirmationRequest = await request.json();
     
     console.log('=== BACKEND: Received body ===');
