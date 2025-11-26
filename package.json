@@ -10,6 +10,9 @@
     "db:seed": "tsx prisma/seed.ts",
     "postinstall": "prisma generate"
   },
+  "pnpm": {
+    "onlyBuiltDependencies": ["canvas", "@napi-rs/canvas"]
+  },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
     "@metaplex-foundation/mpl-core": "^1.6.0",
